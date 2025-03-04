@@ -87,25 +87,6 @@ This generates `example.header.lua`, containing only public function signatures 
 - Omits `---@param` if no parameters exist.
 - Avoids unnecessary `---@return` annotations for functions without a return value.
 
-### **3. Heuristics Used**
-
-#### **Function Annotation Heuristics**
-
-- Function signatures are detected via regex.
-- If a function has parameters, `---@param` annotations are added.
-- If a function returns a table (`return {}`), it is inferred as `---@return table`.
-
-#### **Class & Object Detection Heuristics**
-
-- Detects Lua objects declared as `MyClass = {}` and annotates them as `---@class MyClass`.
-- Detects object methods (`MyClass.method = function(...)`) and adds proper function annotations.
-
-#### **Header File Extraction Heuristics**
-
-- Extracts only **public** functions from a Lua module.
-- Removes implementation details and keeps only function signatures.
-- Maintains module dependencies using `require("...")` format.
-
 ---
 
 ## Reference
