@@ -1,10 +1,22 @@
 use lua_tools::{annotator, parser, tokenizer};
 
 fn main() {
-    let input = "-- Example input
-function get_user(id, options)
-    if not id then return nil end
-    return user_data, error_message
+    //     let input = "
+    // -- Sample module
+    // local M = {}
+    //
+    // -- Example input
+    // function M.get_user(id, options)
+    //     if not id then return nil end
+    //     return user_data, error_message
+    // end
+    //
+    // return M";
+    let input = "-- Sample module
+local M = {}
+
+function M.add(a, b)
+    return a + b
 end";
 
     // Tokenize
@@ -16,8 +28,8 @@ end";
     let ast = parser.parse(); // Now using the parse method
 
     // Annotate
-    let annotator = annotator::Annotator;
-    let annotations = annotator.generate(&ast);
+    let mut annotator = annotator::Annotator::new();
+    let annotations = annotator.generate_docs(&ast);
 
-    println!("{}", annotations.join("\n"));
+    println!("{}", annotations);
 }

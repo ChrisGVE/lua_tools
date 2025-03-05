@@ -4,6 +4,7 @@ use crate::type_inference::TypeInfo;
 use std::collections::HashSet;
 
 pub struct Annotator {
+    current_module: String,
     pub preserve_existing: bool,
     processed_comments: HashSet<String>,
 }
@@ -11,6 +12,7 @@ pub struct Annotator {
 impl Annotator {
     pub fn new() -> Self {
         Self {
+            current_module: String::new(),
             preserve_existing: true,
             processed_comments: HashSet::new(),
         }
@@ -31,6 +33,7 @@ impl Annotator {
     fn process_node(&mut self, node: &ASTNode) -> String {
         match node {
             ASTNode::ModuleDeclaration { name, exports } => {
+                self.current_module = name.clone();
                 self.format_module_header(name, exports)
             }
             ASTNode::FunctionDef {
@@ -39,7 +42,10 @@ impl Annotator {
                 return_types,
                 docs,
                 ..
-            } => self.format_function(name, params, return_types, docs),
+            } => {
+                let full_name = format!("{}.{}", self.current_module, name);
+                self.format_function(&full_name, params, return_types, docs)
+            }
             ASTNode::RequireStatement { module, alias } => {
                 self.format_require(module, alias.as_deref())
             }
@@ -65,50 +71,46 @@ impl Annotator {
 
     fn format_function(
         &mut self,
-        name: &str,
+        full_name: &str,
         params: &[(String, TypeInfo)],
         returns: &[TypeInfo],
-        existing_docs: &[String],
+        docs: &[String],
     ) -> String {
         let mut output = String::new();
 
+        // Strip module prefix for annotation
+        let name = full_name.split('.').last().unwrap_or(full_name);
+
         // Preserve existing docs if requested
         if self.preserve_existing {
-            for doc in existing_docs {
-                if !self.processed_comments.contains(doc) {
-                    output.push_str(doc);
-                    output.push('\n');
-                    self.processed_comments.insert(doc.clone());
-                }
+            for doc in docs {
+                output.push_str(&format!("--{}\n", doc));
             }
         }
 
-        // Add function annotation if missing
-        if !output.contains("---@function") {
-            output.push_str(&format!("---@function {}\n", name));
-        }
+        // Always add function annotation
+        output.push_str(&format!("---@function {}\n", name));
 
         // Parameter annotations
         for (param_name, type_info) in params {
-            if !output.contains(&format!("---@param {}", param_name)) {
-                let type_str = self.type_to_string(type_info);
-                output.push_str(&format!(
+            let type_str = self.type_to_string(type_info);
+            output.push_str(
+                &(format!(
                     "---@param {} {}{}\n",
                     param_name,
                     type_str,
                     self.type_comment_suffix(type_info)
-                ));
-            }
+                )),
+            );
         }
 
-        // Return annotation
-        if !returns.is_empty() && !output.contains("---@return") {
+        // Return annotation (even if unknown)
+        if !returns.is_empty() {
             let return_types = returns
                 .iter()
                 .map(|t| self.type_to_string(t))
                 .collect::<Vec<_>>()
                 .join(", ");
-
             output.push_str(&format!("---@return {}\n", return_types));
         }
 
@@ -187,7 +189,7 @@ mod tests {
     use crate::type_inference::{ScopeContext, TypeInfo};
 
     #[test]
-    fn test_basic_annotation() {
+    fn basic_annotation_generation() {
         let ast = vec![ASTNode::FunctionDef {
             name: "calculate".to_string(),
             params: vec![

@@ -58,6 +58,7 @@ pub struct TypeAnalyzer {
 }
 
 impl TypeAnalyzer {
+    #[allow(dead_code)]
     pub fn new(project: ProjectContext) -> Self {
         Self {
             current_scope: ScopeContext::new(),
@@ -125,4 +126,3 @@ impl TypeAnalyzer {
         }
     }
 }
-
