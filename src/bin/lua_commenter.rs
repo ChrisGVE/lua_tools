@@ -1,23 +1,17 @@
 use lua_tools::{annotator, parser, tokenizer};
 
 fn main() {
-    //     let input = "
-    // -- Sample module
-    // local M = {}
-    //
-    // -- Example input
-    // function M.get_user(id, options)
-    //     if not id then return nil end
-    //     return user_data, error_message
-    // end
-    //
-    // return M";
-    let input = "-- Sample module
-local M = {}
+    let input = "
+    -- Sample module
+    local M = {}
 
-function M.add(a, b)
-    return a + b
-end";
+    -- Example input
+    function M.get_user(id, options)
+        if not id then return nil end
+        return user_data, error_message
+    end
+
+    return M";
 
     // Tokenize
     let mut tokenizer = tokenizer::Tokenizer::new(input);

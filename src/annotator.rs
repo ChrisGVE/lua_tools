@@ -71,40 +71,38 @@ impl Annotator {
 
     fn format_function(
         &mut self,
-        full_name: &str,
+        name: &str,
         params: &[(String, TypeInfo)],
         returns: &[TypeInfo],
-        docs: &[String],
+        existing_docs: &[String],
     ) -> String {
         let mut output = String::new();
 
-        // Strip module prefix for annotation
-        let name = full_name.split('.').last().unwrap_or(full_name);
-
-        // Preserve existing docs if requested
+        // Preserve existing docs
         if self.preserve_existing {
-            for doc in docs {
+            for doc in existing_docs {
                 output.push_str(&format!("--{}\n", doc));
             }
         }
 
-        // Always add function annotation
-        output.push_str(&format!("---@function {}\n", name));
+        // Split module prefix (e.g. "M.get_user" -> "get_user")
+        let short_name = name.split('.').last().unwrap_or(name);
+
+        // Function annotation
+        output.push_str(&format!("---@function {}\n", short_name));
 
         // Parameter annotations
-        for (param_name, type_info) in params {
+        for (param, type_info) in params {
             let type_str = self.type_to_string(type_info);
-            output.push_str(
-                &(format!(
-                    "---@param {} {}{}\n",
-                    param_name,
-                    type_str,
-                    self.type_comment_suffix(type_info)
-                )),
-            );
+            output.push_str(&format!(
+                "---@param {} {}{}\n",
+                param,
+                type_str,
+                self.type_comment_suffix(type_info)
+            ));
         }
 
-        // Return annotation (even if unknown)
+        // Return annotation
         if !returns.is_empty() {
             let return_types = returns
                 .iter()

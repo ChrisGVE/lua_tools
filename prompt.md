@@ -45,9 +45,40 @@ Remember that your goal is to deliver correct, maintainable solutions while givi
 
 Lua tools are CLI tools to facilitate the documentation of lua file and to provide a properly formatted API reference using the Lua syntax.
 
+## Current focus
+
+We are currently focusing on debugging `lua_commenter` before starting to add further functionalities and complete its implementation. `lua_header` will be reviewed once `lua_commenter` is completed.
+
 ## usage
 
 Refer to the file [README.md] and to the existing code for the CLI usage instruction
+
+## lua_commenter
+
+This tool is meant to annotate a Lua file along the Lua LSP annotations standards. The tool will look for
+
+- existing annotations and if they are not preceded with a comment, a placeholder description comment will be left as a reminder to describe the object, in the form of "-- TODO: Add a description"
+- existing annotations will be preserved and enhanced with proper formatting if needed, such as adding missing parameter types or return types.
+- missing annotations will be added and variable types will be inferred from the code. When the type cannot be inferred, a generic type like `any` will be used, with the addition of a "TODO: correct the type as required and descripttion of this <parameter|return value>"
+- The main principles are as follows:
+  - preserve what is already included in the file
+  - add placeholder for missing descriptions (e.g., "-- TODO: Add a description"), with the assumption that descriptions are given before the object
+  - correct and add missing Lua LSP annotations by inferring parameter and return types from the code, including optional parameters or multi-type parameters and return type.
+
+In order to achieve the type inference, a tokenizer, parser and type inference modules will be created to analyze the Lua code structure and determine appropriate types for variables, parameters, and return values.
+
+The program has two modes:
+
+- It can analyze a single file and generate annotations for that file only, making assumptions or using placeholder in case of ambiguity or missing information.
+- It can analyze an entire project directory, recursively processing all Lua files and generating annotations for each file. In this mode, it can build a more comprehensive understanding of types by analyzing dependencies between files.
+
+The output of the lua_commenter tool is a fully annotated Lua file with proper LSP annotations and placeholder comments where descriptions are missing.
+
+### Future Developments
+
+- Inclusion of the whole Lua standard API, such as `math` or `io`, and so on.
+- Inclusion of the whole Neovim standard Lua API
+- Ability to get, readonly, access to external plugins to improve the type inference
 
 ## lua_header
 
@@ -81,30 +112,3 @@ The output files are named after the input file adding `.header.lua` as extensio
 ### Future Developments
 
 - Generate a Markdown file instead of a Lua file.
-
-## lua_commenter
-
-This tool is meant to annotate a Lua file along the Lua LSP annotations standards. The tool will look for
-
-- existing annotations and if they are not preceded with a comment, a placeholder description comment will be left as a reminder to describe the object, in the form of "-- TODO: Add a description"
-- existing annotations will be preserved and enhanced with proper formatting if needed, such as adding missing parameter types or return types.
-- missing annotations will be added and variable types will be inferred from the code. When the type cannot be inferred, a generic type like `any` will be used, with the addition of a "TODO: correct the type as required and descripttion of this <parameter|return value>"
-- The main principles are as follows:
-  - preserve what is already included in the file
-  - add placeholder for missing descriptions (e.g., "-- TODO: Add a description"), with the assumption that descriptions are given before the object
-  - correct and add missing Lua LSP annotations by inferring parameter and return types from the code, including optional parameters or multi-type parameters and return type.
-
-In order to achieve the type inference, a tokenizer, parser and type inference modules will be created to analyze the Lua code structure and determine appropriate types for variables, parameters, and return values.
-
-The program has two modes:
-
-- It can analyze a single file and generate annotations for that file only, making assumptions or using placeholder in case of ambiguity or missing information.
-- It can analyze an entire project directory, recursively processing all Lua files and generating annotations for each file. In this mode, it can build a more comprehensive understanding of types by analyzing dependencies between files.
-
-The output of the lua_commenter tool is a fully annotated Lua file with proper LSP annotations and placeholder comments where descriptions are missing.
-
-### Future Developments
-
-- Inclusion of the whole Lua standard API, such as `math` or `io`, and so on.
-- Inclusion of the whole Neovim standard Lua API
-- Ability to get, readonly, access to external plugins to improve the type inference
