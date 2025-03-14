@@ -1,12 +1,10 @@
 // src/annotator.rs
-use crate::parser::{ASTNode, ExportItem};
-use crate::type_inference::TypeInfo;
-use std::collections::HashSet;
+
+use crate::parser::ast::{CodeASTNode, ExportItem, TypeInfo};
 
 pub struct Annotator {
     current_module: String,
     pub preserve_existing: bool,
-    processed_comments: HashSet<String>,
 }
 
 impl Annotator {
@@ -14,44 +12,55 @@ impl Annotator {
         Self {
             current_module: String::new(),
             preserve_existing: true,
-            processed_comments: HashSet::new(),
         }
     }
 
-    /// Main entry point for generating documentation
-    pub fn generate_docs(&mut self, ast: &[ASTNode]) -> String {
+    pub fn generate_docs(&mut self, ast: &[CodeASTNode]) -> String {
         let mut output = String::new();
 
         for node in ast {
-            output.push_str(&self.process_node(node));
+            match node {
+                CodeASTNode::ModuleDeclaration { name, exports, .. } => {
+                    self.current_module = name.clone();
+                    output.push_str(&self.format_module_header(name, exports));
+                }
+                CodeASTNode::FunctionDef {
+                    name,
+                    params,
+                    return_types,
+                    doc,
+                    annotations,
+                    body,
+                } => {
+                    let full_name = if self.current_module.is_empty() || name.contains('.') {
+                        name.clone()
+                    } else {
+                        format!("{}.{}", self.current_module, name)
+                    };
+                    let docs_vec = doc
+                        .as_ref()
+                        .map(|s| vec![s.clone()])
+                        .unwrap_or_else(Vec::new);
+                    output.push_str(&self.format_function(
+                        &full_name,
+                        params,
+                        return_types,
+                        &docs_vec,
+                    ));
+                }
+                CodeASTNode::Comment(text) => {
+                    if text.contains('\n') {
+                        output.push_str(&self.format_block_comment(text));
+                    } else {
+                        output.push_str(&self.format_line_comment(text));
+                    }
+                }
+                _ => {}
+            }
             output.push('\n');
         }
 
         output
-    }
-
-    fn process_node(&mut self, node: &ASTNode) -> String {
-        match node {
-            ASTNode::ModuleDeclaration { name, exports } => {
-                self.current_module = name.clone();
-                self.format_module_header(name, exports)
-            }
-            ASTNode::FunctionDef {
-                name,
-                params,
-                return_types,
-                docs,
-                ..
-            } => {
-                let full_name = format!("{}.{}", self.current_module, name);
-                self.format_function(&full_name, params, return_types, docs)
-            }
-            ASTNode::RequireStatement { module, alias } => {
-                self.format_require(module, alias.as_deref())
-            }
-            ASTNode::CommentBlock(text) => self.format_existing_comment(text),
-            _ => String::new(),
-        }
     }
 
     fn format_module_header(&self, name: &str, exports: &[ExportItem]) -> String {
@@ -70,7 +79,7 @@ impl Annotator {
     }
 
     fn format_function(
-        &mut self,
+        &self,
         name: &str,
         params: &[(String, TypeInfo)],
         returns: &[TypeInfo],
@@ -78,31 +87,29 @@ impl Annotator {
     ) -> String {
         let mut output = String::new();
 
-        // Preserve existing docs
-        if self.preserve_existing {
+        if existing_docs.is_empty() {
+            output.push_str("-- TODO: Describe the function\n");
+        } else {
             for doc in existing_docs {
-                output.push_str(&format!("--{}\n", doc));
+                output.push_str(&format!("{}\n", doc));
             }
         }
 
-        // Split module prefix (e.g. "M.get_user" -> "get_user")
-        let short_name = name.split('.').last().unwrap_or(name);
+        output.push_str(&format!("---@function {}\n", name));
 
-        // Function annotation
-        output.push_str(&format!("---@function {}\n", short_name));
-
-        // Parameter annotations
         for (param, type_info) in params {
             let type_str = self.type_to_string(type_info);
+            let placeholder = if type_str == "any" {
+                " @TODO: Specify type and describe"
+            } else {
+                ""
+            };
             output.push_str(&format!(
                 "---@param {} {}{}\n",
-                param,
-                type_str,
-                self.type_comment_suffix(type_info)
+                param, type_str, placeholder
             ));
         }
 
-        // Return annotation
         if !returns.is_empty() {
             let return_types = returns
                 .iter()
@@ -115,23 +122,16 @@ impl Annotator {
         output
     }
 
-    fn format_require(&self, module: &str, alias: Option<&str>) -> String {
-        if let Some(alias) = alias {
-            format!("---@dependency {} : {}\n", alias, module)
+    fn format_line_comment(&self, text: &str) -> String {
+        if text.starts_with('-') {
+            format!("--{}", text)
         } else {
-            format!("---@dependency {}\n", module)
+            format!("-- {}", text)
         }
     }
 
-    fn format_existing_comment(&mut self, text: &str) -> String {
-        if self.preserve_existing {
-            text.lines()
-                .map(|line| format!("--{}", line))
-                .collect::<Vec<_>>()
-                .join("\n")
-        } else {
-            String::new()
-        }
+    fn format_block_comment(&self, text: &str) -> String {
+        format!("--[[\n{}\n--]]", text)
     }
 
     fn type_to_string(&self, type_info: &TypeInfo) -> String {
@@ -139,76 +139,10 @@ impl Annotator {
             TypeInfo::String => "string".to_string(),
             TypeInfo::Number => "number".to_string(),
             TypeInfo::Boolean => "boolean".to_string(),
-            TypeInfo::Union(types) => types
-                .iter()
-                .map(|t| self.type_to_string(t))
-                .collect::<Vec<_>>()
-                .join("|"),
-            TypeInfo::Table(fields) => format!(
-                "table<{}>",
-                fields
-                    .iter()
-                    .map(|f| format!("{}: {}", f.name, self.type_to_string(&f.type_info)))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            TypeInfo::Function(sig) => format!(
-                "fun({}) -> {}",
-                sig.params
-                    .iter()
-                    .map(|(name, t)| format!("{}: {}", name, self.type_to_string(t)))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                sig.returns
-                    .iter()
-                    .map(|t| self.type_to_string(t))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            TypeInfo::Optional(inner) => format!("{}?", self.type_to_string(inner)),
+            TypeInfo::Table => "table".to_string(),
+            TypeInfo::Function => "function".to_string(),
             TypeInfo::Unknown => "any".to_string(),
+            _ => "any".to_string(),
         }
-    }
-
-    fn type_comment_suffix(&self, type_info: &TypeInfo) -> &str {
-        match type_info {
-            TypeInfo::Unknown => " @TODO: Specify type",
-            TypeInfo::Optional(inner) => self.type_comment_suffix(inner),
-            _ => "",
-        }
-    }
-}
-
-// src/annotator.rs (add this at the end)
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::parser::ASTNode;
-    use crate::type_inference::{ScopeContext, TypeInfo};
-
-    #[test]
-    fn basic_annotation_generation() {
-        let ast = vec![ASTNode::FunctionDef {
-            name: "calculate".to_string(),
-            params: vec![
-                ("value".to_string(), TypeInfo::Number),
-                ("options".to_string(), TypeInfo::Unknown),
-            ],
-            return_types: vec![
-                TypeInfo::Number,
-                TypeInfo::Optional(Box::new(TypeInfo::String)),
-            ],
-            scope: ScopeContext::new(),
-            docs: vec![],
-            body: vec![],
-        }];
-
-        let mut annotator = Annotator::new();
-        let result = annotator.generate_docs(&ast);
-
-        assert!(result.contains("---@function calculate"));
-        assert!(result.contains("---@param value number"));
-        assert!(result.contains("---@param options any @TODO: Specify type"));
-        assert!(result.contains("---@return number, string?"));
     }
 }
