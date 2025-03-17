@@ -107,7 +107,7 @@ The goal of this section is to provide you with the necessary instructions to
 
 ### Resume, Park a chat
 
-- Track the conversation length in % and alert me when we are approaching the conversation limit, typically when the percentage reaches 70%, at that point create a detailed hand over message for the next client. Similar to divide and conquer, this document must provide all detailed information about the context, what has been done, what remains to be done, in every details necessary to resume this conversation in a new chat. Also perform this task when I ask you to "park yourself".
+- Track the conversation length in % and alert me when we are approaching the conversation limit, typically when the percentage reaches 70%, at that point create a detailed hand over message for the next client. Similar to divide and conquer, this document must provide all detailed information about the context, what has been done, what remains to be done, in every details necessary to resume this conversation in a new chat. Also perform this task when I ask you to "park yourself". After you have digested all the project input, please confirm your understanding of this command.
 
 # LUA Tools
 
